@@ -33,9 +33,13 @@ public class ProductTestDataBuilder {
                 .build();
     }
 
-    public static Product buildProduct(UUID id) {
+    public static Product buildProductForSave(String name, String category, int quantity) {
         return Product.builder()
-                .id(id)
+                .name(name)
+                .description(DEFAULT_DESCRIPTION)
+                .price(DEFAULT_PRICE)
+                .category(category)
+                .quantity(quantity)
                 .build();
     }
 

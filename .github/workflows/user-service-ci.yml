@@ -1,0 +1,49 @@
+name: user service ci
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "user-service/**"
+      - ".github/actions/setup-java-maven/**"
+      - ".github/workflows/user-service-ci.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "user-service/**"
+      - ".github/actions/setup-java-maven/**"
+      - ".github/workflows/user-service-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    defaults:
+      run:
+        working-directory: user-service
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java and Maven cache
+        uses: ./.github/actions/setup-java-maven
+
+      - name: Build
+        run: ./mvnw clean install -DskipTests -B
+
+      - name: Run tests
+        run: ./mvnw verify -B
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v3
+        if: always()
+        with:
+          name: User-Service Unit Test Results
+          path: user-service/**/surefire-reports/TEST*.xml
+          reporter: java-junit

@@ -1,6 +1,7 @@
 package com.es.userservice.service;
 
 import com.es.userservice.model.User;
+import com.es.userservice.security.JwtService;
 import com.es.userservice.util.UserTestDataBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

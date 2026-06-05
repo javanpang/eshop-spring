@@ -4,7 +4,7 @@ import com.es.userservice.dto.AuthResponseDTO;
 import com.es.userservice.dto.LoginRequestDTO;
 import com.es.userservice.dto.RegisterRequestDTO;
 import com.es.userservice.repository.UserRepository;
-import com.es.userservice.service.JwtService;
+import com.es.userservice.security.JwtService;
 import com.es.userservice.util.UserTestDataBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

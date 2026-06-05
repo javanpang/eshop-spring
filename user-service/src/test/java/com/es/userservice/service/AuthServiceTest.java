@@ -6,6 +6,7 @@ import com.es.userservice.dto.RegisterRequestDTO;
 import com.es.userservice.exception.EmailAlreadyExistsException;
 import com.es.userservice.model.User;
 import com.es.userservice.repository.UserRepository;
+import com.es.userservice.security.JwtService;
 import com.es.userservice.util.UserTestDataBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

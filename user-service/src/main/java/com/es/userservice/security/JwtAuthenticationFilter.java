@@ -1,6 +1,5 @@
 package com.es.userservice.security;
 
-import com.es.userservice.service.JwtService;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

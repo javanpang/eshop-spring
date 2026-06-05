@@ -1,4 +1,4 @@
-package com.es.userservice.service;
+package com.es.userservice.security;
 
 import com.es.userservice.model.User;
 import io.jsonwebtoken.Claims;

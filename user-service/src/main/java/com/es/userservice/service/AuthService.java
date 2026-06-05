@@ -7,6 +7,7 @@ import com.es.userservice.exception.EmailAlreadyExistsException;
 import com.es.userservice.model.Role;
 import com.es.userservice.model.User;
 import com.es.userservice.repository.UserRepository;
+import com.es.userservice.security.JwtService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;

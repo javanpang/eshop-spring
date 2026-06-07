@@ -3,6 +3,7 @@ package com.es.productservice.integration;
 import com.es.productservice.dto.ProductRequestDTO;
 import com.es.productservice.dto.ProductResponseDTO;
 import com.es.productservice.repository.ProductRepository;
+import com.es.productservice.util.JwtTestHelper;
 import com.es.productservice.util.ProductTestDataBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,16 +27,18 @@ public class ProductIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-
     @Autowired
     private ObjectMapper objectMapper;
-
     @Autowired
     private ProductRepository productRepository;
+    private String adminToken;
+    private String userToken;
 
     @BeforeEach
-    void cleanDatabase() {
+    void setup() {
         productRepository.deleteAll();
+        adminToken = JwtTestHelper.generateAdminToken();
+        userToken = JwtTestHelper.generateUserToken();
     }
 
     // --- Full create product and read lifecycle ---
@@ -44,7 +47,8 @@ public class ProductIntegrationTest {
     void createProduct_thenGetById_returnsPersistedProduct() throws Exception {
         ProductRequestDTO request = ProductTestDataBuilder.buildRequestDTO();
 
-        MvcResult createResult = mockMvc.perform(post("/products").contentType(MediaType.APPLICATION_JSON)
+        MvcResult createResult = mockMvc.perform(post("/products").header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNotEmpty())
@@ -53,7 +57,7 @@ public class ProductIntegrationTest {
         ProductResponseDTO created = objectMapper.readValue(createResult.getResponse()
                 .getContentAsString(), ProductResponseDTO.class);
 
-        mockMvc.perform(get("/products/{id}", created.getId()))
+        mockMvc.perform(get("/products/{id}", created.getId()).header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value(request.getName()))
                 .andExpect(jsonPath("$.price").value(request.getPrice()))
@@ -69,7 +73,7 @@ public class ProductIntegrationTest {
         productRepository.save(ProductTestDataBuilder.buildProductForSave("Keyboard", "Electronics", 1));
         productRepository.save(ProductTestDataBuilder.buildProductForSave("Mouse", "Electronics", 2));
 
-        mockMvc.perform(get("/products"))
+        mockMvc.perform(get("/products").header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));
     }
@@ -78,50 +82,92 @@ public class ProductIntegrationTest {
 
     @Test
     void updateProduct_persistsChanges() throws Exception {
-        MvcResult createResult = mockMvc.perform(post("/products").contentType(MediaType.APPLICATION_JSON)
+        ProductResponseDTO created = objectMapper.readValue(mockMvc.perform(post("/products").header("Authorization",
+                                "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(ProductTestDataBuilder.buildRequestDTO())))
-                .andReturn();
-        UUID id = objectMapper.readValue(createResult.getResponse()
-                        .getContentAsString(), ProductResponseDTO.class)
-                .getId();
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), ProductResponseDTO.class);
 
         ProductRequestDTO update = ProductTestDataBuilder.buildRequestDTO();
         update.setName("Updated Keyboard");
         update.setQuantity(999);
 
-        mockMvc.perform(put("/products/{id}", id).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put("/products/{id}", created.getId()).header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(update)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Updated Keyboard"))
                 .andExpect(jsonPath("$.quantity").value(999));
 
-        assertThat(productRepository.findById(id)).isPresent()
-                .get()
-                .satisfies(p -> {
-                    assertThat(p.getName()).isEqualTo("Updated Keyboard");
-                    assertThat(p.getQuantity()).isEqualTo(999);
-                });
+        assertThat(productRepository.findById(created.getId())).isPresent().get().satisfies(p -> {
+            assertThat(p.getName()).isEqualTo("Updated Keyboard");
+            assertThat(p.getQuantity()).isEqualTo(999);
+        });
     }
 
     // --- Delete lifecycle ---
 
     @Test
     void deleteProduct_removesFromDatabase() throws Exception {
-        MvcResult createResult = mockMvc.perform(post("/products").contentType(MediaType.APPLICATION_JSON)
+        ProductResponseDTO created = objectMapper.readValue(mockMvc.perform(post("/products").header("Authorization",
+                                "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(ProductTestDataBuilder.buildRequestDTO())))
-                .andReturn();
-        UUID id = objectMapper.readValue(createResult.getResponse()
-                        .getContentAsString(), ProductResponseDTO.class)
-                .getId();
+                .andReturn()
+                .getResponse()
+                .getContentAsString(), ProductResponseDTO.class);
 
-        mockMvc.perform(delete("/products/{id}", id))
+        mockMvc.perform(delete("/products/{id}", created.getId()).header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isNoContent());
 
-        assertThat(productRepository.findById(id)).isEmpty();
+        assertThat(productRepository.findById(created.getId())).isEmpty();
 
         // second delete on same product id returns 404
-        mockMvc.perform(delete("/products/{id}", id))
+        mockMvc.perform(delete("/products/{id}", created.getId()).header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isNotFound());
+    }
+
+    // --- Security tests ---
+
+    @Test
+    void getProducts_withNoToken_returns401() throws Exception {
+        mockMvc.perform(get("/products")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createProduct_withUserRole_returns403() throws Exception {
+        mockMvc.perform(post("/products").header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ProductTestDataBuilder.buildRequestDTO())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateProduct_withUserRole_returns403() throws Exception {
+        UUID id = productRepository.save(ProductTestDataBuilder.buildProductForSave("Keyboard", "Electronics", 1))
+                .getId();
+
+        mockMvc.perform(put("/products/{id}", id).header("Authorization", "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ProductTestDataBuilder.buildRequestDTO())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deleteProduct_withUserRole_returns403() throws Exception {
+        UUID id = productRepository.save(ProductTestDataBuilder.buildProductForSave("Keyboard", "Electronics", 1))
+                .getId();
+
+        mockMvc.perform(delete("/products/{id}", id).header("Authorization", "Bearer " + userToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getProducts_withInvalidToken_returns401() throws Exception {
+        mockMvc.perform(get("/products").header("Authorization", "Bearer this.is.not.a.valid.token"))
+                .andExpect(status().isUnauthorized());
     }
 
     // --- Error paths ---
@@ -130,7 +176,7 @@ public class ProductIntegrationTest {
     void getProductById_whenNotFound_returns404WithCorrectBody() throws Exception {
         UUID randomId = UUID.randomUUID();
 
-        mockMvc.perform(get("/products/{id}", randomId))
+        mockMvc.perform(get("/products/{id}", randomId).header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("Not Found"))
@@ -140,7 +186,8 @@ public class ProductIntegrationTest {
 
     @Test
     void createProduct_withInvalidBody_returns400WithFieldErrors() throws Exception {
-        mockMvc.perform(post("/products").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/products").header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new ProductRequestDTO())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation Failed"))

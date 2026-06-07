@@ -47,6 +47,7 @@ services:
       DB_URL: jdbc:postgresql://productdb:5432/productdb
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "8080:8080"
     depends_on:

@@ -12,6 +12,11 @@ server:
   servlet:
     context-path: /api
 
+application:
+  security:
+    jwt:
+      secret-key: ${JWT_SECRET}
+
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

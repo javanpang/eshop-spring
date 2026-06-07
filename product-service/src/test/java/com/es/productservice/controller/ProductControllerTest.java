@@ -1,14 +1,20 @@
 package com.es.productservice.controller;
 
+import com.es.productservice.config.SecurityConfig;
 import com.es.productservice.dto.ProductRequestDTO;
 import com.es.productservice.dto.ProductResponseDTO;
 import com.es.productservice.exception.ProductNotFoundException;
+import com.es.productservice.security.JwtAuthenticationFilter;
+import com.es.productservice.security.JwtService;
 import com.es.productservice.service.ProductService;
 import com.es.productservice.util.ProductTestDataBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,16 +29,27 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(ProductController.class)
+@WebMvcTest(value = ProductController.class,
+        includeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {
+                SecurityConfig.class, JwtAuthenticationFilter.class
+        }))
 public class ProductControllerTest {
+    private static final String TEST_TOKEN = "Bearer test.jwt.token";
     @Autowired
     private MockMvc mockMvc;
-
     @Autowired
     private ObjectMapper objectMapper;
-
     @MockitoBean
     private ProductService productService;
+    @MockitoBean
+    private JwtService jwtService;
+
+    @BeforeEach
+    void setUp() {
+        when(jwtService.extractEmail("test.jwt.token")).thenReturn("test@example.com");
+        when(jwtService.extractRole("test.jwt.token")).thenReturn("ADMIN");
+        when(jwtService.isTokenValid(eq("test.jwt.token"), any())).thenReturn(true);
+    }
 
     // --- GET /products ---
 
@@ -41,7 +58,7 @@ public class ProductControllerTest {
         ProductResponseDTO responseDTO = ProductTestDataBuilder.buildResponseDTO();
         when(productService.getProducts()).thenReturn(List.of(responseDTO));
 
-        mockMvc.perform(get("/products").accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/products").header("Authorization", TEST_TOKEN).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value(responseDTO.getId().toString()))
@@ -53,7 +70,7 @@ public class ProductControllerTest {
     void getProducts_whenEmpty_returns200WithEmptyList() throws Exception {
         when(productService.getProducts()).thenReturn(List.of());
 
-        mockMvc.perform(get("/products").accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/products").header("Authorization", TEST_TOKEN).accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }
@@ -65,7 +82,8 @@ public class ProductControllerTest {
         ProductResponseDTO responseDTO = ProductTestDataBuilder.buildResponseDTO();
         when(productService.getProductById(ProductTestDataBuilder.DEFAULT_ID)).thenReturn(responseDTO);
 
-        mockMvc.perform(get("/products/{id}", ProductTestDataBuilder.DEFAULT_ID).accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/products/{id}", ProductTestDataBuilder.DEFAULT_ID).header("Authorization", TEST_TOKEN)
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(responseDTO.getId().toString()))
                 .andExpect(jsonPath("$.name").value(responseDTO.getName()));
@@ -76,7 +94,8 @@ public class ProductControllerTest {
         UUID randomId = UUID.randomUUID();
         when(productService.getProductById(randomId)).thenThrow(new ProductNotFoundException(randomId));
 
-        mockMvc.perform(get("/products/{id}", randomId).accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/products/{id}", randomId).header("Authorization", TEST_TOKEN)
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("Not Found"))
@@ -85,7 +104,8 @@ public class ProductControllerTest {
 
     @Test
     void getProductById_whenMalformedUUID_returns400() throws Exception {
-        mockMvc.perform(get("/products/not-a-uuid").accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/products/not-a-uuid").header("Authorization", TEST_TOKEN)
+                        .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.error").value("Type Mismatch"));
@@ -99,7 +119,8 @@ public class ProductControllerTest {
         ProductResponseDTO response = ProductTestDataBuilder.buildResponseDTO();
         when(productService.createProduct(any())).thenReturn(response);
 
-        mockMvc.perform(post("/products").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/products").header("Authorization", TEST_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(response.getId().toString()))
@@ -110,7 +131,8 @@ public class ProductControllerTest {
     void createProduct_withMissingFields_returns400WithFieldErrors() throws Exception {
         ProductRequestDTO invalidRequest = ProductTestDataBuilder.buildInvalidRequestDTO();
 
-        mockMvc.perform(post("/products").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/products").header("Authorization", TEST_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Validation Failed"))
@@ -127,7 +149,8 @@ public class ProductControllerTest {
 
         when(productService.updateProduct(eq(ProductTestDataBuilder.DEFAULT_ID), any())).thenReturn(response);
 
-        mockMvc.perform(put("/products/{id}", ProductTestDataBuilder.DEFAULT_ID).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put("/products/{id}", ProductTestDataBuilder.DEFAULT_ID).header("Authorization", TEST_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(response.getId().toString()));
@@ -138,7 +161,8 @@ public class ProductControllerTest {
         UUID randomId = UUID.randomUUID();
         when(productService.updateProduct(eq(randomId), any())).thenThrow(new ProductNotFoundException(randomId));
 
-        mockMvc.perform(put("/products/{id}", randomId).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put("/products/{id}", randomId).header("Authorization", TEST_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(ProductTestDataBuilder.buildRequestDTO())))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
@@ -148,19 +172,17 @@ public class ProductControllerTest {
 
     @Test
     void deleteProduct_whenFound_returns204() throws Exception {
-        mockMvc.perform(delete("/products/{id}", ProductTestDataBuilder.DEFAULT_ID))
+        mockMvc.perform(delete("/products/{id}", ProductTestDataBuilder.DEFAULT_ID).header("Authorization", TEST_TOKEN))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void deleteProduct_whenNotFound_returns404() throws Exception {
         UUID randomId = UUID.randomUUID();
-        doThrow(new ProductNotFoundException(randomId)).when(productService)
-                .deleteProduct(randomId);
+        doThrow(new ProductNotFoundException(randomId)).when(productService).deleteProduct(randomId);
 
-        mockMvc.perform(delete("/products/{id}", randomId))
+        mockMvc.perform(delete("/products/{id}", randomId).header("Authorization", TEST_TOKEN))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
-
 }

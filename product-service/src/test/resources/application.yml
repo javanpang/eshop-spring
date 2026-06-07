@@ -14,6 +14,11 @@ spring:
     open-in-view: false
     defer-datasource-initialization: true
 
+application:
+  security:
+    jwt:
+      secret-key: 52e15ba064e34e75f7f72d1d972d39adb9f863152bf66dc6db1574abfc33d169
+
 server:
   servlet:
     context-path: /api

@@ -15,6 +15,6 @@ public class ShippingAddress {
     private String street;
     private String city;
     private String county;
-    private String postCode;
+    private String postcode;
     private String country;
 }

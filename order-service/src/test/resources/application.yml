@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: order-service-test
+
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    defer-datasource-initialization: true
+
+application:
+  security:
+    jwt:
+      secret-key: 52e15ba064e34e75f7f72d1d972d39adb9f863152bf66dc6db1574abfc33d169
+
+server:
+  servlet:
+    context-path: /api
